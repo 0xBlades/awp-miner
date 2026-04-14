@@ -655,6 +655,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Post-init: set bot commands ───────────────────────────────────
 
 async def post_init(application: Application):
+    # CRITICAL: Force clear any existing webhook to ensure polling works
+    try:
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Webhook cleared successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to clear webhook: {e}")
+        
     await application.bot.set_my_commands([
         BotCommand("start", "Show menu & help"),
         BotCommand("status", "Check agent status"),
