@@ -716,7 +716,9 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stdout, stderr = await proc.communicate()
         
         if proc.returncode != 0:
-            error_text = stderr.decode().strip() or stdout.decode().strip()
+            out_str = stdout.decode().strip()
+            err_str = stderr.decode().strip()
+            error_text = f"{err_str}\n{out_str}".strip() or "Unknown error (No output)"
             await status_msg.edit_text(f"❌ Allocation failed:\n```\n{_escape_md(error_text)}\n```", parse_mode=ParseMode.MARKDOWN_V2)
             return
 
