@@ -483,6 +483,49 @@ async def cmd_llm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Retrieve and show the wallet address."""
+    if not _auth_check(update):
+        return
+    msg = await update.message.reply_text("🔎 Fetching wallet address...")
+    
+    # Use isolated env to avoid exit -6 crash
+    iso = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(Path.home()),
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8"
+    }
+    wallet_bin_dir = str(Path.home() / ".local" / "bin")
+    if os.path.exists(wallet_bin_dir):
+        iso["PATH"] = f"{wallet_bin_dir}:{iso['PATH']}"
+    if os.getenv("AWP_WALLET_TOKEN"):
+        iso["AWP_WALLET_TOKEN"] = os.getenv("AWP_WALLET_TOKEN")
+
+    try:
+        result = subprocess.run([AWP_WALLET_BIN, "receive"], capture_output=True, text=True, timeout=30, env=iso)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            addr = data.get("address") or data.get("eoaAddress") or ""
+            if not addr and data.get("addresses"):
+                first = data["addresses"][0]
+                addr = first.get("address") or first.get("eoaAddress")
+            
+            if addr:
+                text = (
+                    "👛 *Your AWP Wallet*\n\n"
+                    f"Address: `{_escape_md(addr)}`\n\n"
+                    "Tap to copy the address above\\."
+                )
+                await msg.edit_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+            else:
+                await msg.edit_text("❌ Could not find address in wallet output\\.")
+        else:
+            await msg.edit_text(f"❌ Wallet error (exit {result.returncode}):\n`{_escape_md(result.stderr[:200])}`", parse_mode=ParseMode.MARKDOWN_V2)
+    except Exception as e:
+        await msg.edit_text(f"❌ Error: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+
+
 async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Debug command to see bot environment."""
     if not _auth_check(update):
@@ -681,6 +724,7 @@ async def post_init(application: Application):
         BotCommand("resume", "Resume mining"),
         BotCommand("validator", "Start validator"),
         BotCommand("datasets", "List available datasets"),
+        BotCommand("wallet", "Show wallet address"),
         BotCommand("logs", "Show recent logs"),
         BotCommand("diagnose", "Full diagnosis"),
         BotCommand("llm", "Check LLM configuration"),
@@ -717,6 +761,7 @@ def main():
     app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("validator", cmd_validator))
     app.add_handler(CommandHandler("datasets", cmd_datasets))
+    app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
     app.add_handler(CommandHandler("llm", cmd_llm))
