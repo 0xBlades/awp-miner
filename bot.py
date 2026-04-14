@@ -494,14 +494,24 @@ async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     lines.append(f"\n• `sys.executable`: `{_escape_md(sys.executable)}`")
     
-    # Test Node.js connectivity
+    # Test Node.js connectivity using the SAME isolated logic as _run_tool
+    iso = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(Path.home()),
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8"
+    }
+    wallet_bin_dir = str(Path.home() / ".local" / "bin")
+    if os.path.exists(wallet_bin_dir):
+        iso["PATH"] = f"{wallet_bin_dir}:{iso['PATH']}"
+
     try:
         node_check = subprocess.run(["node", "-e", "console.log(require('crypto').getCurves().length)"], 
-                                    capture_output=True, text=True, timeout=5)
+                                    capture_output=True, text=True, timeout=5, env=iso)
         if node_check.returncode == 0:
-            lines.append(f"\n• `Node Crypto Test`: ✅ `{node_check.stdout.strip()} curves`")
+            lines.append(f"\n• `Node Crypto Test`: ✅ Success `{node_check.stdout.strip()} curves`")
         else:
-            lines.append(f"\n• `Node Crypto Test`: ❌ `Failed (exit {node_check.returncode})`")
+            lines.append(f"\n• `Node Crypto Test`: ❌ Failed (exit {node_check.returncode})")
     except Exception as e:
         lines.append(f"\n• `Node Crypto Test`: ⚠ `Error: {_escape_md(str(e))}`")
     
