@@ -688,7 +688,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     wn_id = context.args[0]
-    amount = context.args[1] if len(context.args) > 1 else ("10" if wn_id == "1" else "0")
+    amount = context.args[1] if len(context.args) > 1 else ("10" if wn_id == "1" else "1")
     lock_days = "30" if wn_id == "1" else "1"
     
     status_msg = await update.message.reply_text(f"⏳ Switching to *Worknet {wn_id}* \\(Allocating {amount} AWP\\.\\.\\.\\)", parse_mode=ParseMode.MARKDOWN_V2)
