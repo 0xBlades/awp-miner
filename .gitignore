@@ -41,3 +41,7 @@ docs/superpowers/
 
 mine-workspace/
 example-worker.py
+
+# ── Bot ──
+# bot.py is tracked (not ignored)
+# .env is already ignored above

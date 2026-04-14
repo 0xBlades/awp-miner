@@ -1,0 +1,15 @@
+[Unit]
+Description=AWP Mine Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/awp-miner-bot
+ExecStart=/root/awp-miner-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+Environment=MINE_SKIP_VENV_REEXEC=1
+
+[Install]
+WantedBy=multi-user.target
