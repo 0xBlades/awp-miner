@@ -636,13 +636,13 @@ async def cmd_miner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _auth_check(update):
         return
     
-    if not LOG_DIR.exists():
+    if not OUTPUT_DIR.exists():
         await update.message.reply_text("❌ Log directory not found.")
         return
         
     try:
         # Get the most recent .log file
-        logs = list(LOG_DIR.glob("*.log"))
+        logs = list(OUTPUT_DIR.glob("*.log"))
         if not logs:
             await update.message.reply_text("💤 No mining logs found. Is the miner running?")
             return
@@ -699,10 +699,10 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if wn_id != "1":
             # Create a dedicated log file for this run so /miner can find it
-            if not LOG_DIR.exists():
-                LOG_DIR.mkdir(parents=True, exist_ok=True)
+            if not OUTPUT_DIR.exists():
+                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                 
-            log_file = LOG_DIR / f"mine-{int(time.time())}.log"
+            log_file = OUTPUT_DIR / f"mine-{int(time.time())}.log"
             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
             subprocess.run([
