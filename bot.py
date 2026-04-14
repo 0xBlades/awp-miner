@@ -55,33 +55,11 @@ if ALLOWED_USER_IDS_RAW.strip():
 LOG_BUFFER: deque[str] = deque(maxlen=100)
 
 
-def get_clean_env() -> dict:
-    """Create a 'Clean Room' env with ONLY essential variables to prevent exit -6 crashes."""
-    clean_env = {
-        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + os.environ.get("PATH", ""),
-        "HOME": str(Path.home()),
-        "LANG": "en_US.UTF-8",
-        "LC_ALL": "en_US.UTF-8",
-        "PWD": str(BASE_DIR),
-        "NODE_NO_WARNINGS": "1",
-        "USER": os.environ.get("USER", "ubuntu"),
-        "PYTHONPATH": str(BASE_DIR) + ":" + str(SCRIPTS_DIR)
-    }
-
-    # Add back the critical AWP/LLM vars from our current env
-    critical_keys = [
-        "AWP_WALLET_TOKEN", "AWP_WALLET_BIN", "AWP_API_URL", "PLATFORM_BASE_URL",
-        "TELEGRAM_BOT_TOKEN", "ALLOWED_USER_IDS", "MINER_ID"
-    ]
-    for key in critical_keys:
-        val = os.environ.get(key)
-        if val:
-            clean_env[key] = val
-    return clean_env
-
+# ── Helpers ────────────────────────────────────────────────────────
 
 def _python_bin() -> str:
     """Resolve the Python binary — prefer local venv."""
+    # Check if we are running in a venv already
     if sys.prefix != sys.base_prefix:
         return sys.executable
 
@@ -91,10 +69,43 @@ def _python_bin() -> str:
     return sys.executable
 
 
+def _get_isolated_env() -> dict:
+    """
+    CRITICAL FIX: ISOLATED ENVIRONMENT
+    Node.js 22 sometimes crashes (exit -6) when inheriting a Python/PM2 env.
+    We create a 'Clean Room' env with ONLY essential variables.
+    """
+    env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(Path.home()),
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8",
+        "PWD": str(BASE_DIR),
+        "NODE_NO_WARNINGS": "1",
+        "USER": os.environ.get("USER", "ubuntu")
+    }
+
+    critical_keys = [
+        "AWP_WALLET_TOKEN", "AWP_WALLET_BIN", "AWP_API_URL", "PLATFORM_BASE_URL",
+        "MINE_GATEWAY_BASE_URL", "MINE_GATEWAY_TOKEN", "MINE_GATEWAY_MODEL",
+        "MINE_ENRICH_MODE", "MINE_ENRICH_MODEL", "MINE_LLM_MODE", "MINER_ID"
+    ]
+    for key in critical_keys:
+        val = os.getenv(key)
+        if val:
+            env[key] = val
+
+    wallet_bin_dir = str(Path.home() / ".local" / "bin")
+    if os.path.exists(wallet_bin_dir):
+        env["PATH"] = f"{wallet_bin_dir}:{env['PATH']}"
+        
+    return env
+
+
 def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     """Execute ``python scripts/run_tool.py <command> [args]`` and return parsed JSON or raw text."""
     cmd = [_python_bin(), str(RUN_TOOL), command, *args]
-    isolated_env = get_clean_env()
+    isolated_env = _get_isolated_env()
 
     try:
         proc = subprocess.run(
@@ -103,7 +114,7 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
             text=True,
             timeout=timeout,
             cwd=str(BASE_DIR),
-            env=isolated_env,
+            env=isolated_env, # Use the clean environment
         )
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
@@ -703,7 +714,6 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                 
             log_file = OUTPUT_DIR / f"mine-{int(time.time())}.log"
-            env = get_clean_env()
             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
             subprocess.run([
@@ -711,7 +721,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "--name", "awp-miner-v2", 
                 "--output", str(log_file), 
                 "--error", str(log_file)
-            ], capture_output=True, cwd=BASE_DIR, env=env)
+            ], capture_output=True, cwd=BASE_DIR, env=_get_isolated_env())
             
             await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and streaming live logs.")
             return
