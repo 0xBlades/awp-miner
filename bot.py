@@ -577,6 +577,60 @@ async def cmd_onboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(f"❌ Error during onboarding: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_bench(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show Benchmark worker logs."""
+    if not _auth_check(update):
+        return
+    
+    log_file = "/tmp/awp_worker.log"
+    if not os.path.exists(log_file):
+        await update.message.reply_text("💤 Benchmark worker log not found. Is it running?")
+        return
+        
+    try:
+        result = subprocess.run(["tail", "-n", "20", log_file], capture_output=True, text=True, timeout=5)
+        text = result.stdout.strip() or "Log is empty."
+        await update.message.reply_text(f"📋 *Benchmark Worker Logs*\n\n```\n{_escape_md(text[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error reading logs: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+
+
+async def cmd_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show Benchmark scores and earnings."""
+    if not _auth_check(update):
+        return
+    
+    q_file = "/tmp/awp_my_questions.json"
+    a_file = "/tmp/awp_my_assignments.json"
+    
+    lines = ["📊 *Benchmark Earnings \(\$aBench\)*\n"]
+    
+    try:
+        if os.path.exists(a_file):
+            with open(a_file, "r") as f:
+                data = json.load(f)
+                items = data.get("data", {}).get("items", []) if isinstance(data, dict) else []
+                total = len(items)
+                scored = len([i for i in items if i.get("score", 0) > 0])
+                avg = sum([i.get("score", 0) for i in items]) / (scored or 1)
+                lines.append(f"• *Assignments Solved:* `{total}`")
+                lines.append(f"• *Average Score:* `{avg:.2f}`")
+        else:
+            lines.append("• Assignments: `No data yet`")
+
+        if os.path.exists(q_file):
+            with open(q_file, "r") as f:
+                data = json.load(f)
+                items = data.get("data", {}).get("items", []) if isinstance(data, dict) else []
+                total = len(items)
+                lines.append(f"• *Questions Submitted:* `{total}`")
+        
+        lines.append(f"\n_Check again in 5 minutes for updates\._")
+        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error reading scores: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+
+
 async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Debug command to see bot environment."""
     if not _auth_check(update):
@@ -777,6 +831,8 @@ async def post_init(application: Application):
         BotCommand("datasets", "List available datasets"),
         BotCommand("wallet", "Show wallet address"),
         BotCommand("onboard", "Register agent on AWP network"),
+        BotCommand("bench", "Check Benchmark worker status"),
+        BotCommand("scores", "Show $aBench earnings"),
         BotCommand("logs", "Show recent logs"),
         BotCommand("diagnose", "Full diagnosis"),
         BotCommand("llm", "Check LLM configuration"),
@@ -815,6 +871,8 @@ def main():
     app.add_handler(CommandHandler("datasets", cmd_datasets))
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("onboard", cmd_onboard))
+    app.add_handler(CommandHandler("bench", cmd_bench))
+    app.add_handler(CommandHandler("scores", cmd_scores))
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
     app.add_handler(CommandHandler("llm", cmd_llm))
