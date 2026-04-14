@@ -712,19 +712,32 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Create a dedicated log file for this run so /miner can find it
             if not OUTPUT_DIR.exists():
                 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-                
+
             log_file = OUTPUT_DIR / f"mine-{int(time.time())}.log"
+            
+            # Kill any existing miner processes
             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
-            subprocess.run([
-                "pm2", "start", f"{py_bin} scripts/run_tool.py -- run-loop 60 0", 
-                "--name", "awp-miner-v2", 
-                "--output", str(log_file), 
-                "--error", str(log_file)
-            ], capture_output=True, cwd=BASE_DIR, env=_get_isolated_env())
+            subprocess.run(["pkill", "-f", "run_tool.py"], capture_output=True)
             
-            await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and streaming live logs.")
+            # Get a clean, isolated environment without PM2 poisoning
+            clean_env = _get_isolated_env()
+            clean_env["MINE_SKIP_VENV_REEXEC"] = "1"  # Prevent re-exec loop
+            
+            # Launch miner directly with nohup (bypasses PM2 env contamination)
+            with open(str(log_file), "w") as lf:
+                subprocess.Popen(
+                    [py_bin, str(BASE_DIR / "scripts" / "run_tool.py"), "run-loop", "60", "0"],
+                    stdout=lf,
+                    stderr=lf,
+                    cwd=str(BASE_DIR),
+                    env=clean_env,
+                    start_new_session=True,  # Detach from bot's process group
+                )
+            
+            await status_msg.edit_text(f"✅ Worknet {wn_id} Mining ACTIVE!\nLog: {log_file.name}\nUse /miner to monitor.")
             return
+
 
         # USE THE NEW RESILIENT SWITCH SCRIPT (Only for Worknet 1 or others needing stake)
         script_path = str(BASE_DIR / "scripts" / "remote_switch.py")
