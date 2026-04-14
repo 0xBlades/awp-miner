@@ -58,7 +58,11 @@ LOG_BUFFER: deque[str] = deque(maxlen=100)
 
 def _python_bin() -> str:
     """Resolve the Python binary — prefer local venv."""
-    venv_python = BASE_DIR / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
+    # Check if we are running in a venv already
+    if sys.prefix != sys.base_prefix:
+        return sys.executable
+
+    venv_python = BASE_DIR / ".venv" / ("bin" if os.name != "nt" else "Scripts") / ("python" if os.name != "nt" else "python.exe")
     if venv_python.exists():
         return str(venv_python)
     return sys.executable
@@ -69,23 +73,21 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     cmd = [_python_bin(), str(RUN_TOOL), command, *args]
     env = os.environ.copy()
     env["MINE_SKIP_VENV_REEXEC"] = "1"
-    if not env.get("HOME") and env.get("USERPROFILE"):
-        env["HOME"] = env["USERPROFILE"]
+    # Ensure HOME is set (crucial for awp-wallet)
+    if not env.get("HOME"):
+        env["HOME"] = str(Path.home())
+    
+    # Ensure PATH includes common npm bin locations
+    if os.name != "nt":
+        paths = env.get("PATH", "").split(":")
+        npm_path = str(Path.home() / ".local" / "bin")
+        if npm_path not in paths:
+            paths.append(npm_path)
+        env["PATH"] = ":".join(paths)
 
-    # Forward LLM & Wallet env vars from .env to subprocess
-    forward_keys = [
-        "MINE_GATEWAY_BASE_URL", "MINE_GATEWAY_TOKEN", "MINE_GATEWAY_MODEL",
-        "MINE_ENRICH_MODE", "MINE_ENRICH_MODEL", "MINE_UPSTREAM_MODEL",
-        "MINE_LLM_MODE",
-        "OPENCLAW_GATEWAY_BASE_URL", "OPENCLAW_GATEWAY_TOKEN",
-        "OPENCLAW_GATEWAY_MODEL", "OPENCLAW_ENRICH_MODE",
-        "AWP_WALLET_TOKEN", "AWP_WALLET_BIN", "AWP_API_URL", "PLATFORM_BASE_URL",
-        "MINER_ID"
-    ]
-    for key in forward_keys:
-        val = os.getenv(key, "")
-        if val:
-            env[key] = val
+    # Add standard Node/Python env vars
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
 
     try:
         proc = subprocess.run(
@@ -99,9 +101,14 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
 
+        if proc.returncode != 0:
+            logger.error(f"Command '{command}' failed with exit code {proc.returncode}")
+            if stderr:
+                logger.error(f"Error output: {stderr}")
+
         # Log for /logs command
         ts = time.strftime("%H:%M:%S")
-        LOG_BUFFER.append(f"[{ts}] $ {command} {' '.join(args)}".strip())
+        LOG_BUFFER.append(f"[{ts}] $ {command} (exit {proc.returncode})")
         if stdout:
             for line in stdout.splitlines()[-5:]:
                 LOG_BUFFER.append(f"  {line}")
