@@ -723,6 +723,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Get a clean, isolated environment without PM2 poisoning
             clean_env = _get_isolated_env()
             clean_env["MINE_SKIP_VENV_REEXEC"] = "1"  # Prevent re-exec loop
+            clean_env["PYTHONUNBUFFERED"] = "1"  # Force immediate output flush to log file
             
             # Launch miner directly with nohup (bypasses PM2 env contamination)
             with open(str(log_file), "w") as lf:
