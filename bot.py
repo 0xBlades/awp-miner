@@ -527,6 +527,56 @@ async def cmd_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(f"❌ Error: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_onboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Perform protocol onboarding (registration)."""
+    uid = update.effective_user.id if update.effective_user else "unknown"
+    logger.info(f"Command /onboard received from user {uid}")
+    
+    if not _auth_check(update):
+        logger.warning(f"Auth check failed for user {uid} on /onboard")
+        return
+        
+    if not update.message:
+        logger.error("No message object in /onboard update")
+        return
+
+    msg = await update.message.reply_text("🚀 Starting gasless onboarding...")
+    logger.info("Onboarding message sent, starting script...")
+    
+    token = os.getenv("AWP_WALLET_TOKEN")
+    if not token:
+        await msg.edit_text("❌ AWP_WALLET_TOKEN not set in .env. Run /wallet to check if you have one.")
+        return
+
+    # Use isolated env
+    iso = {
+        "PATH": f"/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(Path.home()),
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8",
+        "PYTHONPATH": str(BASE_DIR / "benchmark_worknet" / "awp-skill" / "scripts")
+    }
+    
+    script_path = BASE_DIR / "benchmark_worknet" / "awp-skill" / "scripts" / "relay-onboard.py"
+    if not script_path.exists():
+        await msg.edit_text("❌ Onboarding script not found. Did the clone fail?")
+        return
+
+    cmd = [_python_bin(), str(script_path), "--token", token]
+    
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=iso)
+        if proc.returncode == 0:
+            logger.info("Onboarding script succeeded")
+            await msg.edit_text(f"✅ *Onboarding Success!*\n\n```\n{_escape_md(proc.stdout[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+        else:
+            logger.error(f"Onboarding script failed with code {proc.returncode}")
+            await msg.edit_text(f"❌ *Onboarding Failed* (exit {proc.returncode}):\n```\n{_escape_md(proc.stderr[:1000] or proc.stdout[:1000])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+    except Exception as e:
+        logger.exception("Exception during onboarding")
+        await msg.edit_text(f"❌ Error during onboarding: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+
+
 async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Debug command to see bot environment."""
     if not _auth_check(update):
@@ -726,6 +776,7 @@ async def post_init(application: Application):
         BotCommand("validator", "Start validator"),
         BotCommand("datasets", "List available datasets"),
         BotCommand("wallet", "Show wallet address"),
+        BotCommand("onboard", "Register agent on AWP network"),
         BotCommand("logs", "Show recent logs"),
         BotCommand("diagnose", "Full diagnosis"),
         BotCommand("llm", "Check LLM configuration"),
@@ -763,6 +814,7 @@ def main():
     app.add_handler(CommandHandler("validator", cmd_validator))
     app.add_handler(CommandHandler("datasets", cmd_datasets))
     app.add_handler(CommandHandler("wallet", cmd_wallet))
+    app.add_handler(CommandHandler("onboard", cmd_onboard))
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
     app.add_handler(CommandHandler("llm", cmd_llm))
