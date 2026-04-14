@@ -120,8 +120,6 @@ def main():
         }
         
         awp_lib.step("submit_relay")
-        import subprocess
-        import json
         
         # Use CURL for maximum resilience and transparency
         curl_cmd = [
