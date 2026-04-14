@@ -666,16 +666,16 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _auth_check(update):
         return
         
-    status_msg = await update.message.reply_text("🛑 Stopping all workers\\.\\.\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    status_msg = await update.message.reply_text("🛑 Stopping all workers...")
     
     try:
         # Stop both possible workers
         subprocess.run(["pm2", "stop", "awp-miner-v2"], capture_output=True)
         subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
         
-        await status_msg.edit_text("✅ All mining and benchmark workers have been *Stopped*.", parse_mode=ParseMode.MARKDOWN_V2)
+        await status_msg.edit_text("✅ All mining and benchmark workers have been Stopped.")
     except Exception as e:
-        await status_msg.edit_text(f"❌ Error stopping: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+        await status_msg.edit_text(f"❌ Error stopping: {str(e)}")
 
 
 async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -691,7 +691,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = context.args[1] if len(context.args) > 1 else ("10" if wn_id == "1" else "1")
     lock_days = "30" if wn_id == "1" else "1"
     
-    status_msg = await update.message.reply_text(f"⏳ Switching to *Worknet {wn_id}* \\(Allocating {amount} AWP\\.\\.\\.\\)", parse_mode=ParseMode.MARKDOWN_V2)
+    status_msg = await update.message.reply_text(f"⏳ Switching to Worknet {wn_id} (Allocating {amount} AWP...)")
     
     try:
         # Use absolute path to venv python if possible
@@ -732,10 +732,10 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
             subprocess.run(["pm2", "start", f"{py_bin} scripts/run_tool.py -- run-worker 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
             final_text = f"✅ Switched to *Worknet {wn_id} (Mining)*. Mesin tambang dinyalakan."
             
-        await status_msg.edit_text(final_text, parse_mode=ParseMode.MARKDOWN_V2)
+        await status_msg.edit_text(final_text)
         
     except Exception as e:
-        await status_msg.edit_text(f"❌ Error during switch: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+        await status_msg.edit_text(f"❌ Error during switch: {str(e)}")
 
 
 async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -982,7 +982,6 @@ def main():
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("onboard", cmd_onboard))
     app.add_handler(CommandHandler("switch", cmd_switch))
-    app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("miner", cmd_miner))
     app.add_handler(CommandHandler("bench", cmd_bench))
     app.add_handler(CommandHandler("scores", cmd_scores))
