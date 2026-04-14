@@ -545,9 +545,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if data == "status":
-        await query.edit_message_text("🔄 Checking status...")
-        result = _run_tool("agent-status")
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+            await query.edit_message_text("🔄 Checking status...")
+            result = _run_tool("agent-status")
+            await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
     elif data == "doctor":
         await query.edit_message_text("🔬 Running diagnostics...")
