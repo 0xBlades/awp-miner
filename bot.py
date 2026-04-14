@@ -72,6 +72,19 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     if not env.get("HOME") and env.get("USERPROFILE"):
         env["HOME"] = env["USERPROFILE"]
 
+    # Forward LLM gateway env vars from .env to subprocess
+    llm_keys = [
+        "MINE_GATEWAY_BASE_URL", "MINE_GATEWAY_TOKEN", "MINE_GATEWAY_MODEL",
+        "MINE_ENRICH_MODE", "MINE_ENRICH_MODEL", "MINE_UPSTREAM_MODEL",
+        "MINE_LLM_MODE",
+        "OPENCLAW_GATEWAY_BASE_URL", "OPENCLAW_GATEWAY_TOKEN",
+        "OPENCLAW_GATEWAY_MODEL", "OPENCLAW_ENRICH_MODE",
+    ]
+    for key in llm_keys:
+        val = os.getenv(key, "")
+        if val:
+            env[key] = val
+
     try:
         proc = subprocess.run(
             cmd,
@@ -200,6 +213,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🔍 Validator Start", callback_data="validator_start"),
             InlineKeyboardButton("📋 Logs", callback_data="logs"),
         ],
+        [
+            InlineKeyboardButton("🤖 LLM Config", callback_data="llm"),
+        ],
     ])
 
     welcome = (
@@ -215,6 +231,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /validator \\- Start validator\n"
         "• /logs \\- Show recent logs\n"
         "• /datasets \\- List available datasets\n"
+        "• /llm \\- Check LLM configuration\n"
     )
 
     await update.message.reply_text(welcome, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
@@ -392,6 +409,53 @@ async def cmd_diagnose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(_format_status(data), parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_llm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show current LLM configuration status."""
+    if not _auth_check(update):
+        return
+
+    gateway_url = os.getenv("MINE_GATEWAY_BASE_URL", "") or os.getenv("OPENCLAW_GATEWAY_BASE_URL", "")
+    gateway_token = os.getenv("MINE_GATEWAY_TOKEN", "") or os.getenv("OPENCLAW_GATEWAY_TOKEN", "")
+    gateway_model = os.getenv("MINE_GATEWAY_MODEL", "") or os.getenv("OPENCLAW_GATEWAY_MODEL", "")
+    enrich_mode = os.getenv("MINE_ENRICH_MODE", "") or os.getenv("OPENCLAW_ENRICH_MODE", "auto")
+
+    lines = ["🤖 *LLM Configuration*\n"]
+
+    # Gateway URL
+    if gateway_url:
+        lines.append(f"✅ *Gateway URL:* `{_escape_md(gateway_url)}`")
+    else:
+        lines.append("❌ *Gateway URL:* Not set")
+
+    # Token
+    if gateway_token:
+        masked = gateway_token[:8] + "..." + gateway_token[-4:] if len(gateway_token) > 12 else "***"
+        lines.append(f"✅ *API Token:* `{_escape_md(masked)}`")
+    else:
+        lines.append("❌ *API Token:* Not set")
+
+    # Model
+    if gateway_model:
+        lines.append(f"✅ *Model:* `{_escape_md(gateway_model)}`")
+    else:
+        lines.append("⚪ *Model:* Default \\(openclaw/default\\)")
+
+    # Enrich mode
+    lines.append(f"ℹ️ *Enrich Mode:* `{_escape_md(enrich_mode or 'auto')}`")
+
+    # Overall status
+    lines.append("")
+    if gateway_url and gateway_token:
+        lines.append("✅ LLM enrichment is *enabled*")
+        lines.append("PoW challenges \\& data enrichment will use this LLM")
+    else:
+        lines.append("⚠️ LLM enrichment is *disabled*")
+        lines.append("Mining will work but without LLM\\-powered enrichment")
+        lines.append("\nSet `MINE_GATEWAY_BASE_URL` and `MINE_GATEWAY_TOKEN` in \\.env")
+
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+
+
 # ── Callback Query Handler (inline buttons) ──────────────────────
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -485,6 +549,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = _run_tool("agent-start", ds_id, timeout=180)
         await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
+    elif data == "llm":
+        gateway_url = os.getenv("MINE_GATEWAY_BASE_URL", "") or os.getenv("OPENCLAW_GATEWAY_BASE_URL", "")
+        gateway_token = os.getenv("MINE_GATEWAY_TOKEN", "") or os.getenv("OPENCLAW_GATEWAY_TOKEN", "")
+        gateway_model = os.getenv("MINE_GATEWAY_MODEL", "") or os.getenv("OPENCLAW_GATEWAY_MODEL", "")
+        enrich_mode = os.getenv("MINE_ENRICH_MODE", "") or os.getenv("OPENCLAW_ENRICH_MODE", "auto")
+
+        lines = ["🤖 *LLM Configuration*\n"]
+        lines.append(f"{'✅' if gateway_url else '❌'} *Gateway:* `{_escape_md(gateway_url or 'Not set')}`")
+        if gateway_token:
+            masked = gateway_token[:8] + "..." if len(gateway_token) > 8 else "***"
+            lines.append(f"✅ *Token:* `{_escape_md(masked)}`")
+        else:
+            lines.append("❌ *Token:* Not set")
+        lines.append(f"{'✅' if gateway_model else '⚪'} *Model:* `{_escape_md(gateway_model or 'default')}`")
+        lines.append(f"ℹ️ *Mode:* `{_escape_md(enrich_mode or 'auto')}`")
+        lines.append("")
+        if gateway_url and gateway_token:
+            lines.append("✅ LLM enrichment *enabled*")
+        else:
+            lines.append("⚠️ LLM enrichment *disabled*")
+        await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+
 
 # ── Post-init: set bot commands ───────────────────────────────────
 
@@ -501,6 +587,7 @@ async def post_init(application: Application):
         BotCommand("datasets", "List available datasets"),
         BotCommand("logs", "Show recent logs"),
         BotCommand("diagnose", "Full diagnosis"),
+        BotCommand("llm", "Check LLM configuration"),
     ])
     logger.info("Bot commands registered successfully.")
 
@@ -533,6 +620,7 @@ def main():
     app.add_handler(CommandHandler("datasets", cmd_datasets))
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
+    app.add_handler(CommandHandler("llm", cmd_llm))
     app.add_handler(CallbackQueryHandler(button_handler))
 
     logger.info("Bot is polling...")
