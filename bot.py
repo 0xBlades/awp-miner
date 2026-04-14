@@ -568,10 +568,10 @@ async def cmd_onboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=iso)
         if proc.returncode == 0:
             logger.info("Onboarding script succeeded")
-            await msg.edit_text(f"✅ *Onboarding Success!*\n\n```\n{_escape_md(proc.stdout[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+            await msg.edit_text(f"✅ *Onboarding Success\!*\n\n```\n{_escape_md(proc.stdout[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
         else:
             logger.error(f"Onboarding script failed with code {proc.returncode}")
-            await msg.edit_text(f"❌ *Onboarding Failed* (exit {proc.returncode}):\n```\n{_escape_md(proc.stderr[:1000] or proc.stdout[:1000])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+            await msg.edit_text(f"❌ *Onboarding Failed\!* (exit {proc.returncode}):\n```\n{_escape_md(proc.stderr[:1000] or proc.stdout[:1000])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         logger.exception("Exception during onboarding")
         await msg.edit_text(f"❌ Error during onboarding: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
