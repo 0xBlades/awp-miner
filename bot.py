@@ -549,101 +549,101 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = _run_tool("agent-status")
             await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "doctor":
-        await query.edit_message_text("🔬 Running diagnostics...")
-        result = _run_tool("doctor", timeout=60)
-        if "_raw" in result:
-            await query.edit_message_text(f"```\n{result['_raw'][:3800]}\n```", parse_mode=ParseMode.MARKDOWN_V2)
-        else:
-            status = result.get("status", "unknown")
-            emoji = "✅" if status == "ok" else "❌"
-            text = f"{emoji} Doctor: `{_escape_md(status)}`"
-            checks = result.get("checks", [])
-            for c in checks:
-                icon = "✅" if c.get("ok") else "❌"
-                text += f"\n  {icon} {_escape_md(c.get('name', '?'))}"
-            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "doctor":
+            await query.edit_message_text("🔬 Running diagnostics...")
+            result = _run_tool("doctor", timeout=60)
+            if "_raw" in result:
+                await query.edit_message_text(f"```\n{result['_raw'][:3800]}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+            else:
+                status = result.get("status", "unknown")
+                emoji = "✅" if status == "ok" else "❌"
+                text = f"{emoji} Doctor: `{_escape_md(status)}`"
+                checks = result.get("checks", [])
+                for c in checks:
+                    icon = "✅" if c.get("ok") else "❌"
+                    text += f"\n  {icon} {_escape_md(c.get('name', '?'))}"
+                await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "start":
-        await query.edit_message_text("⛏ Starting mining agent...")
-        result = _run_tool("agent-start", timeout=180)
-        state = result.get("state", "")
-        if state == "selection_required":
-            datasets = result.get("_internal", {}).get("datasets", [])
-            buttons = []
-            for ds in datasets[:6]:
-                name = str(ds.get("name") or ds.get("dataset_id") or "?")
-                ds_id = str(ds.get("dataset_id") or ds.get("id") or "")
-                buttons.append([InlineKeyboardButton(f"📂 {name}", callback_data=f"dataset_{ds_id}")])
-            keyboard = InlineKeyboardMarkup(buttons)
-            await query.edit_message_text("📋 *Select a dataset:*", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
-        else:
+        elif data == "start":
+            await query.edit_message_text("⛏ Starting mining agent...")
+            result = _run_tool("agent-start", timeout=180)
+            state = result.get("state", "")
+            if state == "selection_required":
+                datasets = result.get("_internal", {}).get("datasets", [])
+                buttons = []
+                for ds in datasets[:6]:
+                    name = str(ds.get("name") or ds.get("dataset_id") or "?")
+                    ds_id = str(ds.get("dataset_id") or ds.get("id") or "")
+                    buttons.append([InlineKeyboardButton(f"📂 {name}", callback_data=f"dataset_{ds_id}")])
+                keyboard = InlineKeyboardMarkup(buttons)
+                await query.edit_message_text("📋 *Select a dataset:*", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
+            else:
+                await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+
+        elif data == "stop":
+            await query.edit_message_text("⏹ Stopping mining...")
+            result = _run_tool("agent-control", "stop", timeout=60)
             await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "stop":
-        await query.edit_message_text("⏹ Stopping mining...")
-        result = _run_tool("agent-control", "stop", timeout=60)
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "pause":
+            await query.edit_message_text("⏸ Pausing mining...")
+            result = _run_tool("agent-control", "pause", timeout=60)
+            await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "pause":
-        await query.edit_message_text("⏸ Pausing mining...")
-        result = _run_tool("agent-control", "pause", timeout=60)
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "resume":
+            await query.edit_message_text("▶️ Resuming mining...")
+            result = _run_tool("agent-control", "resume", timeout=60)
+            await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "resume":
-        await query.edit_message_text("▶️ Resuming mining...")
-        result = _run_tool("agent-control", "resume", timeout=60)
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "validator_start":
+            await query.edit_message_text("🔍 Starting validator...")
+            result = _run_tool("validator-start", timeout=180)
+            await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data == "validator_start":
-        await query.edit_message_text("🔍 Starting validator...")
-        result = _run_tool("validator-start", timeout=180)
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "logs":
+            log_lines = []
+            bg_log = WORKER_STATE_DIR / "background.log"
+            if bg_log.exists():
+                try:
+                    content = bg_log.read_text(encoding="utf-8", errors="replace")
+                    log_lines = content.splitlines()[-20:]
+                except Exception:
+                    pass
+            if not log_lines:
+                log_lines = list(LOG_BUFFER)[-20:]
+            if log_lines:
+                text = "\n".join(log_lines)[-3500:]
+                await query.edit_message_text(f"📋 *Logs:*\n```\n{text}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+            else:
+                await query.edit_message_text("📭 No logs available yet.")
 
-    elif data == "logs":
-        log_lines = []
-        bg_log = WORKER_STATE_DIR / "background.log"
-        if bg_log.exists():
-            try:
-                content = bg_log.read_text(encoding="utf-8", errors="replace")
-                log_lines = content.splitlines()[-20:]
-            except Exception:
-                pass
-        if not log_lines:
-            log_lines = list(LOG_BUFFER)[-20:]
-        if log_lines:
-            text = "\n".join(log_lines)[-3500:]
-            await query.edit_message_text(f"📋 *Logs:*\n```\n{text}\n```", parse_mode=ParseMode.MARKDOWN_V2)
-        else:
-            await query.edit_message_text("📭 No logs available yet.")
+        elif data.startswith("dataset_"):
+            ds_id = data.replace("dataset_", "")
+            await query.edit_message_text(f"⛏ Starting mining for dataset `{_escape_md(ds_id)}`\\.\\.\\.", parse_mode=ParseMode.MARKDOWN_V2)
+            result = _run_tool("agent-start", ds_id, timeout=180)
+            await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
-    elif data.startswith("dataset_"):
-        ds_id = data.replace("dataset_", "")
-        await query.edit_message_text(f"⛏ Starting mining for dataset `{_escape_md(ds_id)}`\\.\\.\\.", parse_mode=ParseMode.MARKDOWN_V2)
-        result = _run_tool("agent-start", ds_id, timeout=180)
-        await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
+        elif data == "llm":
+            gateway_url = os.getenv("MINE_GATEWAY_BASE_URL", "") or os.getenv("OPENCLAW_GATEWAY_BASE_URL", "")
+            gateway_token = os.getenv("MINE_GATEWAY_TOKEN", "") or os.getenv("OPENCLAW_GATEWAY_TOKEN", "")
+            gateway_model = os.getenv("MINE_GATEWAY_MODEL", "") or os.getenv("OPENCLAW_GATEWAY_MODEL", "")
+            enrich_mode = os.getenv("MINE_ENRICH_MODE", "") or os.getenv("OPENCLAW_ENRICH_MODE", "auto")
 
-    elif data == "llm":
-        gateway_url = os.getenv("MINE_GATEWAY_BASE_URL", "") or os.getenv("OPENCLAW_GATEWAY_BASE_URL", "")
-        gateway_token = os.getenv("MINE_GATEWAY_TOKEN", "") or os.getenv("OPENCLAW_GATEWAY_TOKEN", "")
-        gateway_model = os.getenv("MINE_GATEWAY_MODEL", "") or os.getenv("OPENCLAW_GATEWAY_MODEL", "")
-        enrich_mode = os.getenv("MINE_ENRICH_MODE", "") or os.getenv("OPENCLAW_ENRICH_MODE", "auto")
-
-        lines = ["🤖 *LLM Configuration*\n"]
-        lines.append(f"{'✅' if gateway_url else '❌'} *Gateway:* `{_escape_md(gateway_url or 'Not set')}`")
-        if gateway_token:
-            masked = gateway_token[:8] + "..." if len(gateway_token) > 8 else "***"
-            lines.append(f"✅ *Token:* `{_escape_md(masked)}`")
-        else:
-            lines.append("❌ *Token:* Not set")
-        lines.append(f"{'✅' if gateway_model else '⚪'} *Model:* `{_escape_md(gateway_model or 'default')}`")
-        lines.append(f"ℹ️ *Mode:* `{_escape_md(enrich_mode or 'auto')}`")
-        lines.append("")
-        if gateway_url and gateway_token:
-            lines.append("✅ LLM enrichment *enabled*")
-        else:
-            lines.append("⚠️ LLM enrichment *disabled*")
-        await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+            lines = ["🤖 *LLM Configuration*\n"]
+            lines.append(f"{'✅' if gateway_url else '❌'} *Gateway:* `{_escape_md(gateway_url or 'Not set')}`")
+            if gateway_token:
+                masked = gateway_token[:8] + "..." if len(gateway_token) > 8 else "***"
+                lines.append(f"✅ *Token:* `{_escape_md(masked)}`")
+            else:
+                lines.append("❌ *Token:* Not set")
+            lines.append(f"{'✅' if gateway_model else '⚪'} *Model:* `{_escape_md(gateway_model or 'default')}`")
+            lines.append(f"ℹ️ *Mode:* `{_escape_md(enrich_mode or 'auto')}`")
+            lines.append("")
+            if gateway_url and gateway_token:
+                lines.append("✅ LLM enrichment *enabled*")
+            else:
+                lines.append("⚠️ LLM enrichment *disabled*")
+            await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         logger.error(f"Error in button_handler: {e}", exc_info=True)
         try:
