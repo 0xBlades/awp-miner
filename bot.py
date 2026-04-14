@@ -522,17 +522,29 @@ async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    if not query:
+        return
+        
+    data = query.data
+    user_id = query.from_user.id if query.from_user else "Unknown"
+    
+    # Use standard print for extreme visibility in PM2 logs
+    print(f"DEBUG: Button clicked! User: {user_id}, Data: {data}")
+    logger.info(f"🔘 Button clicked by {user_id}: {data}")
+    
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.error(f"Failed to answer query: {e}")
 
-    if not ALLOWED_USER_IDS or (query.from_user and query.from_user.id in ALLOWED_USER_IDS):
-        pass
-    else:
-        await query.edit_message_text("⛔ Unauthorized.")
+    # Auth check
+    if ALLOWED_USER_IDS and user_id not in ALLOWED_USER_IDS:
+        logger.warning(f"🚫 Unauthorized attempt from {user_id}")
+        await query.edit_message_text(f"⛔ Unauthorized (ID: {user_id})")
         return
 
-    data = query.data
-
-    if data == "status":
+    try:
+        if data == "status":
         await query.edit_message_text("🔄 Checking status...")
         result = _run_tool("agent-status")
         await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
@@ -632,6 +644,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             lines.append("⚠️ LLM enrichment *disabled*")
         await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    except Exception as e:
+        logger.error(f"Error in button_handler: {e}", exc_info=True)
+        try:
+            await query.edit_message_text(f"❌ *Error in handler:* `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+        except Exception:
+            pass
 
 
 # ── Post-init: set bot commands ───────────────────────────────────
@@ -671,7 +689,9 @@ def main():
         .build()
     )
 
-    # Register handlers
+    # Register handlers (Callback first to be safe)
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("doctor", cmd_doctor))
@@ -685,7 +705,6 @@ def main():
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
     app.add_handler(CommandHandler("llm", cmd_llm))
     app.add_handler(CommandHandler("env", cmd_env))
-    app.add_handler(CallbackQueryHandler(button_handler))
 
     logger.info("Bot is polling...")
     app.run_polling(drop_pending_updates=True)
