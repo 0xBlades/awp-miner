@@ -41,9 +41,27 @@ class WalletSigner:
 
     def _run(self, *args: str) -> dict[str, Any]:
         cmd = [self._bin, *args]
-        env = os.environ.copy()
-        if not env.get("HOME") and env.get("USERPROFILE"):
-            env["HOME"] = env["USERPROFILE"]
+        # CRITICAL: Build a CLEAN environment for awp-wallet.
+        # 'os.environ.copy()' inherits PM2's internal vars (NODE_APP_INSTANCE,
+        # PM2_HOME, etc.) which crash Node.js 22 native bindings with exit -6.
+        from pathlib import Path
+        env: dict[str, str] = {
+            "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+            "HOME": os.environ.get("HOME") or os.environ.get("USERPROFILE", ""),
+            "LANG": "en_US.UTF-8",
+            "LC_ALL": "en_US.UTF-8",
+            "NODE_NO_WARNINGS": "1",
+            "USER": os.environ.get("USER", ""),
+        }
+        # Pass all AWP_* vars through (token, wallet bin, etc.)
+        for key, val in os.environ.items():
+            if key.startswith("AWP_"):
+                env[key] = val
+        # Ensure local bin dir is in PATH for awp-wallet to be found
+        local_bin = str(Path.home() / ".local" / "bin")
+        if local_bin not in env["PATH"]:
+            env["PATH"] = f"{local_bin}:{env['PATH']}"
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
         if result.returncode != 0:
             stderr = result.stderr.strip()
