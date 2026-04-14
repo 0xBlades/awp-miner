@@ -72,15 +72,17 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     if not env.get("HOME") and env.get("USERPROFILE"):
         env["HOME"] = env["USERPROFILE"]
 
-    # Forward LLM gateway env vars from .env to subprocess
-    llm_keys = [
+    # Forward LLM & Wallet env vars from .env to subprocess
+    forward_keys = [
         "MINE_GATEWAY_BASE_URL", "MINE_GATEWAY_TOKEN", "MINE_GATEWAY_MODEL",
         "MINE_ENRICH_MODE", "MINE_ENRICH_MODEL", "MINE_UPSTREAM_MODEL",
         "MINE_LLM_MODE",
         "OPENCLAW_GATEWAY_BASE_URL", "OPENCLAW_GATEWAY_TOKEN",
         "OPENCLAW_GATEWAY_MODEL", "OPENCLAW_ENRICH_MODE",
+        "AWP_WALLET_TOKEN", "AWP_WALLET_BIN", "AWP_API_URL", "PLATFORM_BASE_URL",
+        "MINER_ID"
     ]
-    for key in llm_keys:
+    for key in forward_keys:
         val = os.getenv(key, "")
         if val:
             env[key] = val
