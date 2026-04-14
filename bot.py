@@ -654,8 +654,9 @@ async def cmd_miner(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = subprocess.run(["tail", "-n", "20", str(latest_log)], capture_output=True, text=True, timeout=5)
         text = result.stdout.strip() or "Log is empty."
         
-        header = f"⛏️ *Mining Activity ({latest_log.name})*\n\n"
-        await update.message.reply_text(f"{header}```\n{_escape_md(text[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+        # ESCAPE the header because it contains parentheses and dots
+        header = _escape_md(f"⛏️ Mining Activity ({latest_log.name})")
+        await update.message.reply_text(f"*{header}*\n\n```\n{_escape_md(text[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         await update.message.reply_text(f"❌ Error reading miner logs: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
