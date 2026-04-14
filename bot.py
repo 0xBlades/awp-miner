@@ -699,18 +699,15 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not os.path.exists(py_bin):
             py_bin = sys.executable
 
-        script_path = str(BASE_DIR / "benchmark_worknet" / "awp-skill" / "scripts" / "relay-onboard.py")
+        # USE THE NEW RESILIENT SWITCH SCRIPT
+        script_path = str(BASE_DIR / "scripts" / "remote_switch.py")
         env = os.environ.copy()
-        env["AWP_WALLET_TOKEN"] = os.environ.get("AWP_WALLET_TOKEN", "")
+        token = os.environ.get("AWP_WALLET_TOKEN", "")
         
-        # USE ASYNC SUBPROCESS TO PREVENT FREEZING
         import asyncio
         proc = await asyncio.create_subprocess_exec(
             py_bin, script_path, 
-            "--token", env["AWP_WALLET_TOKEN"], 
-            "--amount", amount, 
-            "--lock-days", lock_days, 
-            "--worknet", wn_id,
+            wn_id, amount, token,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env
@@ -719,7 +716,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stdout, stderr = await proc.communicate()
         
         if proc.returncode != 0:
-            error_text = stderr.decode().strip()
+            error_text = stderr.decode().strip() or stdout.decode().strip()
             await status_msg.edit_text(f"❌ Allocation failed:\n```\n{_escape_md(error_text)}\n```", parse_mode=ParseMode.MARKDOWN_V2)
             return
 
