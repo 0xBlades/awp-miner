@@ -77,12 +77,16 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     if not env.get("HOME"):
         env["HOME"] = str(Path.home())
     
+    # Remove Node.js environment pollution from PM2 that might cause crashes
+    for node_key in ["NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "NODE_ICU_DATA"]:
+        env.pop(node_key, None)
+
     # Ensure PATH includes common npm bin locations
     if os.name != "nt":
         paths = env.get("PATH", "").split(":")
         npm_path = str(Path.home() / ".local" / "bin")
         if npm_path not in paths:
-            paths.append(npm_path)
+            paths.insert(0, npm_path) # Prioritize local bin
         env["PATH"] = ":".join(paths)
 
     # Add standard Node/Python env vars
