@@ -654,9 +654,16 @@ async def cmd_miner(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # ESCAPE the header because it contains parentheses and dots
         header = _escape_md(f"⛏️ Mining Activity ({latest_log.name})")
-        await update.message.reply_text(f"*{header}*\n\n```\n{_escape_md(text[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
+        
+        # For the code block content, we only need to escape backticks and backslashes
+        # according to Telegram MarkdownV2 docs for 'pre' entities.
+        safe_text = text[:3800].replace("\\", "\\\\").replace("`", "\\`").replace("|", "\\|")
+        
+        await update.message.reply_text(f"*{header}*\n\n```\n{safe_text}\n```", parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
-        await update.message.reply_text(f"❌ Error reading miner logs: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
+        logger.error(f"Error in cmd_miner: {e}")
+        # Send a plain text error if Markdown fails
+        await update.message.reply_text(f"❌ Error reading miner logs: {str(e)}")
 
 
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
