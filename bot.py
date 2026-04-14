@@ -73,20 +73,27 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     cmd = [_python_bin(), str(RUN_TOOL), command, *args]
     env = os.environ.copy()
     env["MINE_SKIP_VENV_REEXEC"] = "1"
-    # Ensure HOME is set (crucial for awp-wallet)
-    if not env.get("HOME"):
-        env["HOME"] = str(Path.home())
+    # Force standard Ubuntu environment for subprocess
+    if os.name != "nt":
+        env["LANG"] = "en_US.UTF-8"
+        env["LC_ALL"] = "en_US.UTF-8"
+        # Explicitly fallback to /home/ubuntu if HOME is missing or /root
+        if not env.get("HOME") or env["HOME"] == "/root":
+            if os.path.exists("/home/ubuntu"):
+                env["HOME"] = "/home/ubuntu"
     
     # Remove Node.js environment pollution from PM2 that might cause crashes
     for node_key in ["NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "NODE_ICU_DATA"]:
         env.pop(node_key, None)
+    env["NODE_NO_WARNINGS"] = "1"
 
-    # Ensure PATH includes common npm bin locations
+    # Ensure PATH includes common bin locations
     if os.name != "nt":
         paths = env.get("PATH", "").split(":")
-        npm_path = str(Path.home() / ".local" / "bin")
-        if npm_path not in paths:
-            paths.insert(0, npm_path) # Prioritize local bin
+        npm_paths = ["/usr/local/bin", "/usr/bin", "/bin", str(Path.home() / ".local" / "bin")]
+        for p in npm_paths:
+            if p not in paths and os.path.exists(p):
+                paths.insert(0, p)
         env["PATH"] = ":".join(paths)
 
     # Add standard Node/Python env vars
@@ -469,6 +476,26 @@ async def cmd_llm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug command to see bot environment."""
+    if not _auth_check(update):
+        return
+    
+    # Collect key env vars
+    keys = ["HOME", "PATH", "LANG", "LC_ALL", "USER", "SHELL", "AWP_WALLET_TOKEN", "MINE_GATEWAY_MODEL"]
+    lines = ["🌐 *Bot Runtime Environment*\n"]
+    for k in keys:
+        val = os.environ.get(k, "Not set")
+        if "TOKEN" in k and val != "Not set":
+            val = val[:8] + "..."
+        lines.append(f"• `{k}`: `{_escape_md(val)}`")
+    
+    lines.append(f"\n• `sys.executable`: `{_escape_md(sys.executable)}`")
+    lines.append(f"\n• `Path.home()`: `{_escape_md(str(Path.home()))}`")
+    
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+
+
 # ── Callback Query Handler (inline buttons) ──────────────────────
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -601,6 +628,7 @@ async def post_init(application: Application):
         BotCommand("logs", "Show recent logs"),
         BotCommand("diagnose", "Full diagnosis"),
         BotCommand("llm", "Check LLM configuration"),
+        BotCommand("env", "Check bot environment"),
     ])
     logger.info("Bot commands registered successfully.")
 
@@ -634,6 +662,7 @@ def main():
     app.add_handler(CommandHandler("logs", cmd_logs))
     app.add_handler(CommandHandler("diagnose", cmd_diagnose))
     app.add_handler(CommandHandler("llm", cmd_llm))
+    app.add_handler(CommandHandler("env", cmd_env))
     app.add_handler(CallbackQueryHandler(button_handler))
 
     logger.info("Bot is polling...")
