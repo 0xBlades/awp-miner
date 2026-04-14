@@ -34,6 +34,7 @@ SCRIPTS_DIR = BASE_DIR / "scripts"
 RUN_TOOL = SCRIPTS_DIR / "run_tool.py"
 OUTPUT_DIR = BASE_DIR / "output" / "agent-runs"
 WORKER_STATE_DIR = OUTPUT_DIR / "_worker_state"
+AWP_WALLET_BIN = os.getenv("AWP_WALLET_BIN", str(Path.home() / ".local" / "bin" / "awp-wallet"))
 
 # ── Logging ────────────────────────────────────────────────────────
 logging.basicConfig(
