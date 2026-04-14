@@ -89,7 +89,24 @@ def main():
         )
         
         awp_lib.step("sign_eip712")
-        signature = awp_lib.wallet_sign_typed_data(token, eip712_data)
+        #signature = awp_lib.wallet_sign_typed_data(token, eip712_data)
+        
+        # MANUALLY HANDLE SIGNING TO IGNORE EXIT CODE 1
+        sign_args = [wallet_bin, "sign-typed-data", "--data", json.dumps(eip712_data), "--chain", "base"]
+        if token:
+            sign_args += ["--token", token]
+            
+        sign_res = subprocess.run(sign_args, capture_output=True, text=True)
+        try:
+            sign_data = json.loads(sign_res.stdout.strip())
+            signature = sign_data.get("signature")
+        except:
+            print(json.dumps({"error": "Failed to parse signature JSON", "stdout": sign_res.stdout, "stderr": sign_res.stderr}))
+            sys.exit(1)
+            
+        if not signature:
+            print(json.dumps({"error": "Empty signature returned", "stdout": sign_res.stdout}))
+            sys.exit(1)
         
         relay_endpoint = f"{awp_lib.RELAY_BASE}/relay/allocate"
         relay_body = {
