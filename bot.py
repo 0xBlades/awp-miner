@@ -71,40 +71,36 @@ def _python_bin() -> str:
 def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
     """Execute ``python scripts/run_tool.py <command> [args]`` and return parsed JSON or raw text."""
     cmd = [_python_bin(), str(RUN_TOOL), command, *args]
-    env = os.environ.copy()
-    env["MINE_SKIP_VENV_REEXEC"] = "1"
-    # Force standard Ubuntu environment for subprocess
-    if os.name != "nt":
-        env["LANG"] = "en_US.UTF-8"
-        env["LC_ALL"] = "en_US.UTF-8"
-        # Explicitly fallback to /home/ubuntu if HOME is missing or /root
-        if not env.get("HOME") or env["HOME"] == "/root":
-            if os.path.exists("/home/ubuntu"):
-                env["HOME"] = "/home/ubuntu"
-    
-    # CRITICAL: Clean up environment variables that often cause SIGABRT in Node/OpenSSL
-    bad_keys = [
-        "NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "NODE_ICU_DATA", "NODE_NO_WARNINGS",
-        "OPENSSL_CONF", "OPENSSL_CONF_SOURCE", "SSL_CERT_FILE", "SSL_CERT_DIR",
-        "LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH"
+    # ──────────────────────────────────────────────────────────────────────────
+    # CRITICAL FIX: ISOLATED ENVIRONMENT
+    # Node.js 22 sometimes crashes (exit -6) when inheriting a Python/PM2 env.
+    # We create a "Clean Room" env with ONLY essential variables.
+    # ──────────────────────────────────────────────────────────────────────────
+    isolated_env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "HOME": str(Path.home()),
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8",
+        "PWD": str(BASE_DIR),
+        "NODE_NO_WARNINGS": "1",
+        "USER": os.environ.get("USER", "ubuntu")
+    }
+
+    # Add back the critical AWP/LLM vars from our loaded .env
+    critical_keys = [
+        "AWP_WALLET_TOKEN", "AWP_WALLET_BIN", "AWP_API_URL", "PLATFORM_BASE_URL",
+        "MINE_GATEWAY_BASE_URL", "MINE_GATEWAY_TOKEN", "MINE_GATEWAY_MODEL",
+        "MINE_ENRICH_MODE", "MINE_ENRICH_MODEL", "MINE_LLM_MODE", "MINER_ID"
     ]
-    for k in bad_keys:
-        env.pop(k, None)
-    
-    env["NODE_NO_WARNINGS"] = "1"
+    for key in critical_keys:
+        val = os.getenv(key)
+        if val:
+            isolated_env[key] = val
 
-    # Ensure PATH includes common bin locations
-    if os.name != "nt":
-        paths = env.get("PATH", "").split(":")
-        npm_paths = ["/usr/local/bin", "/usr/bin", "/bin", str(Path.home() / ".local" / "bin")]
-        for p in npm_paths:
-            if p not in paths and os.path.exists(p):
-                paths.insert(0, p)
-        env["PATH"] = ":".join(paths)
-
-    # Add standard Node/Python env vars
-    env["PYTHONUNBUFFERED"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
+    # Ensure our PATH includes the wallet bin if it's in a non-standard place
+    wallet_bin_dir = str(Path.home() / ".local" / "bin")
+    if os.path.exists(wallet_bin_dir):
+        isolated_env["PATH"] = f"{wallet_bin_dir}:{isolated_env['PATH']}"
 
     try:
         proc = subprocess.run(
@@ -113,7 +109,7 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
             text=True,
             timeout=timeout,
             cwd=str(BASE_DIR),
-            env=env,
+            env=isolated_env, # Use the clean environment
         )
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
