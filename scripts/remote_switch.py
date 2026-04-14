@@ -125,7 +125,13 @@ def main():
         if 200 <= http_code < 300:
             print(json.dumps({"status": "success", "worknet": wn_id, "amount": amount}))
         else:
-            print(json.dumps({"error": f"Relay HTTP {http_code}", "detail": body}))
+            # Format the error from the relay
+            err_msg = body.get("error", "Unknown Relay Error") if isinstance(body, dict) else str(body)
+            print(json.dumps({
+                "error": f"Relay Rejected (HTTP {http_code})",
+                "reason": err_msg,
+                "suggestion": "Check if you have enough $AWP balance to allocate (minimum 1 AWP)."
+            }))
             sys.exit(1)
 
     except Exception as e:
