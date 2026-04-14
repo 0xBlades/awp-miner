@@ -631,6 +631,31 @@ async def cmd_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error reading scores: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
 
+async def cmd_miner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show live Mining logs from the latest session."""
+    if not _auth_check(update):
+        return
+    
+    # Try to find the latest log in output/agent-runs/
+    log_dir = BASE_DIR / "output" / "agent-runs"
+    if not log_dir.exists():
+        await update.message.reply_text("💤 No mining output directory found yet.")
+        return
+        
+    try:
+        # Get the most recent .log file
+        logs = list(log_dir.glob("*.log"))
+        if not logs:
+            await update.message.reply_text("💤 No mining logs found. Is the miner running?")
+            return
+            
+        latest_log = max(logs, key=os.path.getmtime)
+        
+        result = subprocess.run(["tail", "-n", "20", str(latest_log)], capture_output=True, text=True, timeout=5)
+        text = result.stdout.strip() or "Log is empty."
+        
+        header = f"⛏️ *Mining Activity ({latest_log.name})*\n\n"
+        await update.message.reply_text(f"{header}```\n{_escape_md(text[:3800])}\n```", parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         await update.message.reply_text(f"❌ Error reading miner logs: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -705,49 +730,14 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
             # Use run-worker persistent mode
-            miner_cmd = [sys.executable, "scripts/run_tool.py", "run-worker", "60", "0"]
             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
-            subprocess.run(["pm2", "start", f"{sys.executable} scripts/run_tool.py -- run-worker 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
+            subprocess.run(["pm2", "start", f"{py_bin} scripts/run_tool.py -- run-worker 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
             final_text = f"✅ Switched to *Worknet {wn_id} (Mining)*. Mesin tambang dinyalakan."
             
         await status_msg.edit_text(final_text, parse_mode=ParseMode.MARKDOWN_V2)
         
     except Exception as e:
         await status_msg.edit_text(f"❌ Error during switch: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
-
-
-async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Switch worknet (1-5) and toggle appropriate workers."""
-    if not _auth_check(update):
-        return
-        
-    if not context.args:
-        await update.message.reply_text("❓ Usage: `/switch <id> [amount]`\nExample: `/switch 1 100` or `/switch 2`")
-        return
-        
-    wn_id = context.args[0]
-    amount = context.args[1] if len(context.args) > 1 else ("10" if wn_id == "1" else "0")
-    lock_days = "30" if wn_id == "1" else "1"
-    
-    await update.message.reply_text(f"⏳ Switching to *Worknet {wn_id}* (Allocating {amount} AWP)...", parse_mode=ParseMode.MARKDOWN_V2)
-    
-    try:
-        # 1. Run relay-onboard.py
-        script_path = BASE_DIR / "benchmark_worknet" / "awp-skill" / "scripts" / "relay-onboard.py"
-        env = os.environ.copy()
-        env["AWP_WALLET_TOKEN"] = os.environ.get("AWP_WALLET_TOKEN", "")
-        
-        cmd = [sys.executable, str(script_path), "--token", env["AWP_WALLET_TOKEN"], "--amount", amount, "--lock-days", lock_days, "--worknet", wn_id]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
-        
-        if result.returncode != 0:
-            await update.message.reply_text(f"❌ Allocation failed:\n```\n{_escape_md(result.stderr)}\n```", parse_mode=ParseMode.MARKDOWN_V2)
-            return
-
-        # 2. Toggle PM2 workers
-        if wn_id == "1":
-            subprocess.run(["pm2", "stop", "awp-miner-v2"], capture_output=True)
             subprocess.run(["pm2", "start", "scripts/run_benchmark.sh", "--name", "awp-benchmark"], capture_output=True, cwd=BASE_DIR)
             status_msg = "✅ Switched to *Worknet 1 (Benchmark)*. Worker started."
         else:
