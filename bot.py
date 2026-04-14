@@ -699,13 +699,19 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not os.path.exists(py_bin):
             py_bin = sys.executable
 
-        # LOGIC CHANGE: Worknet 2+ is stake-free on MineWork.net
-        # If the user is registered, we skip the allocation call and just start the worker.
         if wn_id != "1":
+            # Create a dedicated log file for this run so /miner can find it
+            log_file = log_dir / f"mine-{int(time.time())}.log"
             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
-            subprocess.run(["pm2", "start", f"{py_bin} scripts/run_tool.py -- run-loop 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
-            await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and reporting live logs.")
+            subprocess.run([
+                "pm2", "start", f"{py_bin} scripts/run_tool.py -- run-loop 60 0", 
+                "--name", "awp-miner-v2", 
+                "--output", str(log_file), 
+                "--error", str(log_file)
+            ], capture_output=True, cwd=BASE_DIR)
+            
+            await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and streaming live logs.")
             return
 
         # USE THE NEW RESILIENT SWITCH SCRIPT (Only for Worknet 1 or others needing stake)
