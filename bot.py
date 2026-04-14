@@ -82,9 +82,15 @@ def _run_tool(command: str, *args: str, timeout: int = 120) -> dict:
             if os.path.exists("/home/ubuntu"):
                 env["HOME"] = "/home/ubuntu"
     
-    # Remove Node.js environment pollution from PM2 that might cause crashes
-    for node_key in ["NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "NODE_ICU_DATA"]:
-        env.pop(node_key, None)
+    # CRITICAL: Clean up environment variables that often cause SIGABRT in Node/OpenSSL
+    bad_keys = [
+        "NODE_OPTIONS", "NODE_PATH", "NODE_ENV", "NODE_ICU_DATA", "NODE_NO_WARNINGS",
+        "OPENSSL_CONF", "OPENSSL_CONF_SOURCE", "SSL_CERT_FILE", "SSL_CERT_DIR",
+        "LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH"
+    ]
+    for k in bad_keys:
+        env.pop(k, None)
+    
     env["NODE_NO_WARNINGS"] = "1"
 
     # Ensure PATH includes common bin locations
@@ -482,7 +488,7 @@ async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Collect key env vars
-    keys = ["HOME", "PATH", "LANG", "LC_ALL", "USER", "SHELL", "AWP_WALLET_TOKEN", "MINE_GATEWAY_MODEL"]
+    keys = ["HOME", "PATH", "LANG", "LC_ALL", "USER", "SHELL", "AWP_WALLET_TOKEN", "OPENSSL_CONF"]
     lines = ["🌐 *Bot Runtime Environment*\n"]
     for k in keys:
         val = os.environ.get(k, "Not set")
@@ -491,7 +497,17 @@ async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"• `{k}`: `{_escape_md(val)}`")
     
     lines.append(f"\n• `sys.executable`: `{_escape_md(sys.executable)}`")
-    lines.append(f"\n• `Path.home()`: `{_escape_md(str(Path.home()))}`")
+    
+    # Test Node.js connectivity
+    try:
+        node_check = subprocess.run(["node", "-e", "console.log(require('crypto').getCurves().length)"], 
+                                    capture_output=True, text=True, timeout=5)
+        if node_check.returncode == 0:
+            lines.append(f"\n• `Node Crypto Test`: ✅ `{node_check.stdout.strip()} curves`")
+        else:
+            lines.append(f"\n• `Node Crypto Test`: ❌ `Failed (exit {node_check.returncode})`")
+    except Exception as e:
+        lines.append(f"\n• `Node Crypto Test`: ⚠ `Error: {_escape_md(str(e))}`")
     
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
