@@ -313,18 +313,20 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Handle dataset selection
     if state == "selection_required":
         datasets = data.get("_internal", {}).get("datasets", [])
-        buttons = []
-        for ds in datasets[:6]:
-            name = str(ds.get("name") or ds.get("dataset_id") or "?")
-            ds_id = str(ds.get("dataset_id") or ds.get("id") or "")
-            buttons.append([InlineKeyboardButton(f"📂 {name}", callback_data=f"dataset_{ds_id}")])
-
-        keyboard = InlineKeyboardMarkup(buttons)
-        await msg.edit_text(
+        lines = [
             "📋 *Select a dataset to mine:*",
-            parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=keyboard,
-        )
+            "Copy and send one of the commands below:\n"
+        ]
+        
+        for ds in datasets[:10]:
+            name = str(ds.get("name") or "?")
+            ds_id = str(ds.get("dataset_id") or ds.get("id") or "")
+            lines.append(f"• *{_escape_md(name)}*")
+            lines.append(f"  └ Command: `/run {ds_id}`")
+            
+        lines.append(f"\nExample: Tap the `/run ...` text to copy it\\.")
+        
+        await msg.edit_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     await msg.edit_text(_format_status(data), parse_mode=ParseMode.MARKDOWN_V2)
@@ -381,7 +383,10 @@ async def cmd_datasets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for ds in datasets[:10]:
         name = ds.get("name", ds.get("dataset_id", "?"))
         ds_id = ds.get("dataset_id", ds.get("id", "?"))
-        lines.append(f"  • `{_escape_md(str(name))}` \\(ID: `{_escape_md(str(ds_id))}`\\)")
+        lines.append(f"• *{_escape_md(str(name))}*")
+        lines.append(f"  └ ID: `{_escape_md(str(ds_id))}`")
+        lines.append(f"  └ Launch: `/run {ds_id}`")
+        lines.append("")
 
     await msg.edit_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -570,13 +575,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             state = result.get("state", "")
             if state == "selection_required":
                 datasets = result.get("_internal", {}).get("datasets", [])
-                buttons = []
-                for ds in datasets[:6]:
-                    name = str(ds.get("name") or ds.get("dataset_id") or "?")
+                lines = [
+                    "📋 *Available Datasets:*",
+                    "Send command to start:\n"
+                ]
+                for ds in datasets[:10]:
                     ds_id = str(ds.get("dataset_id") or ds.get("id") or "")
-                    buttons.append([InlineKeyboardButton(f"📂 {name}", callback_data=f"dataset_{ds_id}")])
-                keyboard = InlineKeyboardMarkup(buttons)
-                await query.edit_message_text("📋 *Select a dataset:*", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
+                    name = str(ds.get("name") or ds_id)
+                    lines.append(f"• {name}: `/run {ds_id}`")
+                    
+                lines.append(f"\nTap or click a command above to copy it\\.")
+                await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
             else:
                 await query.edit_message_text(_format_status(result), parse_mode=ParseMode.MARKDOWN_V2)
 
