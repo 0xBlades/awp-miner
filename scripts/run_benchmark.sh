@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# run_benchmark.sh — Wrapper to run the Benchmark worker with isolated env
+# run_benchmark.sh — Wrapper to run the SMART Benchmark worker (Python version)
 
 # Base paths
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCH_DIR="$BASE_DIR/benchmark_worknet/benchmark-skill"
-WALLET_BIN="$HOME/.local/bin/awp-wallet"
+WORKER_PY="$BENCH_DIR/scripts/benchmark-worker.py"
 
 # Environment Setup
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -21,11 +21,11 @@ if [ -f "$BASE_DIR/.env" ]; then
     fi
 fi
 
-# Ensure jq is available
-if ! command -v jq &> /dev/null; then
-    echo "[!] jq not found. Attempting to use a local or system version..."
-fi
-
 # Entry point
-echo "🚀 Starting Benchmark Worker from $BENCH_DIR"
-exec bash "$BENCH_DIR/scripts/worker.sh"
+echo "🚀 Starting SMART Benchmark Worker (Python) from $BENCH_DIR"
+# Clear old coordinator log to avoid confusion
+rm -f /tmp/awp_worker.log
+# Link the python worker's log to the path the bot expects
+ln -sf /tmp/benchmark-worker.log /tmp/awp_worker.log
+
+exec python3 "$WORKER_PY"

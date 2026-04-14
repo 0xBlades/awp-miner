@@ -37,15 +37,16 @@ def _resolve_openclaw_path() -> str:
     """Find the absolute path to the openclaw binary."""
     global _openclaw_bin
 
-    for name in ["openclaw", "openclaw.mjs"]:
+    # Try common binary names including user's 'hermes'
+    for name in ["hermes", "openclaw", "openclaw.mjs"]:
         path = shutil.which(name)
         if path:
             _openclaw_bin = path
-            log.info("openclaw found: %s", path)
+            log.info("binary found: %s", path)
             return _openclaw_bin
 
     search_dirs = [
-        os.path.expanduser("~/.local/bin"),
+        os.path.expanduser("~/.local/bin"), # Where hermes usually lives
         "/usr/local/bin",
         os.path.expanduser("~/.openclaw/bin"),
         os.path.expanduser("~/bin"),
@@ -53,14 +54,14 @@ def _resolve_openclaw_path() -> str:
         "/usr/bin",
     ]
     for d in search_dirs:
-        for name in ["openclaw", "openclaw.mjs"]:
+        for name in ["hermes", "openclaw", "openclaw.mjs"]:
             candidate = os.path.join(d, name)
             if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
                 _openclaw_bin = candidate
-                log.info("openclaw found at: %s", candidate)
+                log.info("binary found at: %s", candidate)
                 return _openclaw_bin
 
-    log.warning("openclaw not found in PATH or common locations")
+    log.warning("no reasoning binary found in PATH or common locations")
     return _openclaw_bin
 
 
