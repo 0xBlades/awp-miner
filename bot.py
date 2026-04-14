@@ -738,17 +738,6 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         await status_msg.edit_text(f"❌ Error during switch: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
-            subprocess.run(["pm2", "start", "scripts/run_benchmark.sh", "--name", "awp-benchmark"], capture_output=True, cwd=BASE_DIR)
-            status_msg = "✅ Switched to *Worknet 1 (Benchmark)*. Worker started."
-        else:
-            subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
-            subprocess.run(["pm2", "restart", "awp-miner-v2"], capture_output=True) # Ensure it's active
-            status_msg = f"✅ Switched to *Worknet {wn_id} (Mining)*. Miner started."
-            
-        await update.message.reply_text(status_msg, parse_mode=ParseMode.MARKDOWN_V2)
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error during switch: `{_escape_md(str(e))}`", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE):
