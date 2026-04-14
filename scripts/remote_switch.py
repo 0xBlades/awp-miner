@@ -120,17 +120,35 @@ def main():
         }
         
         awp_lib.step("submit_relay")
-        http_code, body = awp_lib.api_post(relay_endpoint, relay_body)
+        import subprocess
+        import json
         
-        if 200 <= http_code < 300:
+        # Use CURL for maximum resilience and transparency
+        curl_cmd = [
+            "curl", "-s", "-X", "POST", relay_endpoint,
+            "-H", "Content-Type: application/json",
+            "-H", f"User-Agent: {awp_lib._USER_AGENT}",
+            "-d", json.dumps(relay_body)
+        ]
+        
+        curl_res = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=60)
+        
+        http_code = 0
+        body = {}
+        try:
+            body = json.loads(curl_res.stdout.strip())
+        except:
+            body = {"raw": curl_res.stdout.strip() or curl_res.stderr.strip() or "Empty response"}
+            
+        if curl_res.returncode == 0 and ("error" not in body):
             print(json.dumps({"status": "success", "worknet": wn_id, "amount": amount}))
         else:
             # Format the error from the relay
-            err_msg = body.get("error", "Unknown Relay Error") if isinstance(body, dict) else str(body)
+            err_msg = body.get("error") or body.get("raw") or "Unknown Relay Error"
             print(json.dumps({
-                "error": f"Relay Rejected (HTTP {http_code})",
+                "error": "Relay Rejected",
                 "reason": err_msg,
-                "suggestion": "Check if you have enough $AWP balance to allocate (minimum 1 AWP)."
+                "suggestion": "If you have 0 balance, you may need a small amount of AWP to allocate."
             }))
             sys.exit(1)
 
