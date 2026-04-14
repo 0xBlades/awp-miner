@@ -666,7 +666,7 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _auth_check(update):
         return
         
-    status_msg = await update.message.reply_text("🛑 Stopping all workers...", parse_mode=ParseMode.MARKDOWN_V2)
+    status_msg = await update.message.reply_text("🛑 Stopping all workers\\.\\.\\.", parse_mode=ParseMode.MARKDOWN_V2)
     
     try:
         # Stop both possible workers
@@ -691,7 +691,7 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = context.args[1] if len(context.args) > 1 else ("10" if wn_id == "1" else "0")
     lock_days = "30" if wn_id == "1" else "1"
     
-    status_msg = await update.message.reply_text(f"⏳ Switching to *Worknet {wn_id}* (Allocating {amount} AWP...)", parse_mode=ParseMode.MARKDOWN_V2)
+    status_msg = await update.message.reply_text(f"⏳ Switching to *Worknet {wn_id}* \\(Allocating {amount} AWP\\.\\.\\.\\)", parse_mode=ParseMode.MARKDOWN_V2)
     
     try:
         # Use absolute path to venv python if possible
