@@ -701,12 +701,13 @@ async def cmd_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # LOGIC CHANGE: Worknet 2+ is stake-free on MineWork.net
         # If the user is registered, we skip the allocation call and just start the worker.
-             subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
-             subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
-             subprocess.run(["pm2", "start", f"{py_bin} scripts/run_tool.py -- run-loop 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
-             await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and reporting live logs.")
-             return
-             
+        if wn_id != "1":
+            subprocess.run(["pm2", "stop", "awp-benchmark"], capture_output=True)
+            subprocess.run(["pm2", "delete", "awp-miner-v2"], capture_output=True)
+            subprocess.run(["pm2", "start", f"{py_bin} scripts/run_tool.py -- run-loop 60 0", "--name", "awp-miner-v2"], capture_output=True, cwd=BASE_DIR)
+            await status_msg.edit_text(f"✅ Switched to Worknet {wn_id} (Stake-Free). Miner is now ACTIVE and reporting live logs.")
+            return
+
         # USE THE NEW RESILIENT SWITCH SCRIPT (Only for Worknet 1 or others needing stake)
         script_path = str(BASE_DIR / "scripts" / "remote_switch.py")
         env = os.environ.copy()
